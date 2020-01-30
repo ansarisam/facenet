@@ -32,7 +32,7 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import argparse
-import facenet.src.facenet as facenet
+import facenet
 import os
 import sys
 import math
