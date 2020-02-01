@@ -37,30 +37,43 @@ import numpy as np
 import tensorflow as tf
 from scipy import misc
 
+import align
 import align.detect_face
 import facenet
 
 
 gpu_memory_fraction = 0.3
-facenet_model_checkpoint = os.path.dirname(__file__) + "/../model_checkpoints/20170512-110547"
-classifier_model = os.path.dirname(__file__) + "/../model_checkpoints/my_classifier_1.pkl"
+# facenet_model_checkpoint = os.path.dirname(__file__) + "/../model_checkpoints/20170512-110547"
+# classifier_model = os.path.dirname(__file__) + "/../model_checkpoints/my_classifier_1.pkl"
+# facenet_model_checkpoint = "/Users/sansari/Downloads/20180402-114759/20180402-114759.pb"
+# classifier_model = "/Users/sansari/presidents_aligned/face_classifier.pkl"
+# facenet_model_checkpoint = None
+# classifier_model = None
 debug = False
 
 
 class Face:
-    def __init__(self):
+    def __init__(self, facenet_model_checkpoint, classifier_model):
         self.name = None
         self.bounding_box = None
         self.image = None
         self.container_image = None
         self.embedding = None
+        self.facenet_model_checkpoint = facenet_model_checkpoint
+        self.classifier_model = classifier_model
+        # classifier_model = self.classifier_model
+        # facenet_model_checkpoint = self.facenet_model_checkpoint
 
 
 class Recognition:
-    def __init__(self):
-        self.detect = Detection()
-        self.encoder = Encoder()
-        self.identifier = Identifier()
+    def __init__(self,facenet_model_checkpoint, classifier_model):
+        self.facenet_model_checkpoint = facenet_model_checkpoint
+        self.classifier_model = classifier_model
+        # classifier_model = self.classifier_model
+        # facenet_model_checkpoint = self.facenet_model_checkpoint
+        self.detect = Detection(self.facenet_model_checkpoint, self.classifier_model)
+        self.encoder = Encoder(self.facenet_model_checkpoint)
+        self.identifier = Identifier(self.classifier_model)
 
     def add_identity(self, image, person_name):
         faces = self.detect.find_faces(image)
@@ -84,8 +97,9 @@ class Recognition:
 
 
 class Identifier:
-    def __init__(self):
-        with open(classifier_model, 'rb') as infile:
+    def __init__(self, classifier_model):
+        self.classifier_model = classifier_model
+        with open(self.classifier_model, 'rb') as infile:
             self.model, self.class_names = pickle.load(infile)
 
     def identify(self, face):
@@ -96,10 +110,11 @@ class Identifier:
 
 
 class Encoder:
-    def __init__(self):
+    def __init__(self, facenet_model_checkpoint):
+        self.facenet_model_checkpoint = facenet_model_checkpoint
         self.sess = tf.Session()
         with self.sess.as_default():
-            facenet.load_model(facenet_model_checkpoint)
+            facenet.load_model(self.facenet_model_checkpoint)
 
     def generate_embedding(self, face):
         # Get input and output tensors
@@ -120,10 +135,12 @@ class Detection:
     threshold = [0.6, 0.7, 0.7]  # three steps's threshold
     factor = 0.709  # scale factor
 
-    def __init__(self, face_crop_size=160, face_crop_margin=32):
+    def __init__(self, facenet_model_checkpoint, classifier_model, face_crop_size=160, face_crop_margin=32):
         self.pnet, self.rnet, self.onet = self._setup_mtcnn()
         self.face_crop_size = face_crop_size
         self.face_crop_margin = face_crop_margin
+        self.classifier_model = classifier_model
+        self.facenet_model_checkpoint = facenet_model_checkpoint
 
     def _setup_mtcnn(self):
         with tf.Graph().as_default():
@@ -139,7 +156,7 @@ class Detection:
                                                           self.pnet, self.rnet, self.onet,
                                                           self.threshold, self.factor)
         for bb in bounding_boxes:
-            face = Face()
+            face = Face(self.facenet_model_checkpoint, self.classifier_model)
             face.container_image = image
             face.bounding_box = np.zeros(4, dtype=np.int32)
 
@@ -149,7 +166,7 @@ class Detection:
             face.bounding_box[2] = np.minimum(bb[2] + self.face_crop_margin / 2, img_size[1])
             face.bounding_box[3] = np.minimum(bb[3] + self.face_crop_margin / 2, img_size[0])
             cropped = image[face.bounding_box[1]:face.bounding_box[3], face.bounding_box[0]:face.bounding_box[2], :]
-            face.image = misc.imresize(cropped, (self.face_crop_size, self.face_crop_size), interp='bilinear')
+            face.image = cv2.resize(cropped, (self.face_crop_size, self.face_crop_size), interpolation=cv2.INTER_LINEAR)
 
             faces.append(face)
 

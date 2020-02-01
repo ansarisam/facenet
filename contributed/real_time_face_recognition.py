@@ -31,6 +31,7 @@ import time
 import cv2
 
 import face
+import pafy
 
 
 def add_overlays(frame, faces, frame_rate):
@@ -55,9 +56,17 @@ def main(args):
     fps_display_interval = 5  # seconds
     frame_rate = 0
     frame_count = 0
+    url = 0
+    if args.source == "youtube":
+        url = args.url
+        videoPafy = pafy.new(url)
+        url = videoPafy.getbest(preftype="webm").url
+    else:
+        url = 0
 
-    video_capture = cv2.VideoCapture(0)
-    face_recognition = face.Recognition()
+    video_capture = cv2.VideoCapture(url)
+    # video_capture = cv2.VideoCapture(0)
+    face_recognition = face.Recognition(args.facenet_model_checkpoint, args.classifier_model)
     start_time = time.time()
 
     if args.debug:
@@ -96,6 +105,10 @@ def parse_arguments(argv):
 
     parser.add_argument('--debug', action='store_true',
                         help='Enable some debug outputs.')
+    parser.add_argument("--source", type=str, help='Select one of the video sources: webcam or youtube ', default='webcam')
+    parser.add_argument("--url", type=str, help='Provide the URL of video source, such as youtube.', default=None)
+    parser.add_argument("--classifier_model", type=str, help='Provide the path to the pickel file for classifier model.', default=None)
+    parser.add_argument("--facenet_model_checkpoint", type=str, help='Provide the path to the trained facenet model', default=None)
     return parser.parse_args(argv)
 
 
